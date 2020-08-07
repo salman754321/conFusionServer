@@ -4,9 +4,7 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 const mongoose = require('mongoose');
-
-var session = require('express-session');
-var FileStore = require('session-file-store')(session);
+var passport = require('passport');
 const leaderRouter=require("./routes/leaderRouter");
 
 const dishRouter=require("./routes/dishRouter");
@@ -14,7 +12,20 @@ const PromoRouter=require("./routes/promoroyter");
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 
+var session = require('express-session');
+var FileStore = require('session-file-store')(session);
+
 var app = express();
+app.use(session({
+  name: 'session-id',
+  secret: '12345-67890-09876-54321',
+  saveUninitialized: false,
+  resave: false,
+  store: new FileStore()
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+
 const url = 'mongodb://localhost:27017/conFusion';
 const connect = mongoose.connect(url);
 
@@ -24,44 +35,37 @@ connect.then((db) => {
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
-
+app.use('/users', usersRouter);
+app.use('/', indexRouter);
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 //app.use(cookieParser('12345-67890-09876-54321'));
-app.use(session({
-  name: 'session-id',
-  secret: '12345-67890-09876-54321',
-  saveUninitialized: false,
-  resave: false,
-  store: new FileStore()
-}));
 
+
+
+var authenticate = require('./authenticate');
 function auth (req, res, next) {
-  if(!req.session.user) {
+  console.log(req.user);
+
+  if (!req.user) {
     var err = new Error('You are not authenticated!');
     err.status = 403;
-    return next(err);
-}
-else {
-  if (req.session.user === 'authenticated') {
-    next();
+    next(err);
   }
   else {
-    var err = new Error('You are not authenticated!');
-    err.status = 403;
-    return next(err);
+        next();
   }
 }
-}
 
-app.use('/users', usersRouter);
+
 app.use(auth);
-app.use(express.static(path.join(__dirname, 'public')));
 app.use("/dish",dishRouter);
 app.use("/promo",PromoRouter);
 app.use("/leader" ,leaderRouter);
-app.use('/', indexRouter);
+app.use(express.static(path.join(__dirname, 'public')));
+
+
 
 
 // catch 404 and forward to error handler
@@ -79,5 +83,7 @@ app.use(function(err, req, res, next) {
   res.status(err.status || 500);
   res.render('error');
 });
+
+
 
 module.exports = app;
